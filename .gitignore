@@ -1,0 +1,36 @@
+# === Terraform ===
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+
+# === Secrets / credentials ===
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+credentials
+credentials.json
+*.secret
+
+# === Python ===
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# === VS Code ===
+.vscode/
+*.code-workspace
+
+# === OS generated files ===
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# === Logs ===
+*.log
