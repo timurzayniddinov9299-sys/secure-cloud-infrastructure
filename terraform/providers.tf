@@ -1,5 +1,6 @@
 # AWS provider konfiguratsiyasi.
-# Bu faylda credential yoki boshqa maxfiy qiymat yo'q.
+# Credential yoki secret bu faylda YOZILMAYDI. Provider ularni
+# muhit o'zgaruvchilari yoki AWS CLI konfiguratsiyasidan oladi.
 provider "aws" {
   region = var.aws_region
 }

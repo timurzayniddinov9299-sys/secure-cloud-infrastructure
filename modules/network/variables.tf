@@ -1,36 +1,16 @@
-# Asosiy kirish o'zgaruvchilari.
-# Region uchun default berilmaydi; u tfvars yoki muhit orqali kiritiladi.
-variable "aws_region" {
-  description = "AWS mintaqasi (region)."
+variable "name_prefix" {
+  description = "Resurs nomlari va teglar uchun prefiks."
   type        = string
-}
-
-variable "project_name" {
-  description = "Resurs nomlari va teglar uchun asosiy loyiha nomi."
-  type        = string
-  default     = "secure-cloud-infra"
 
   validation {
-    condition     = length(trimspace(var.project_name)) > 0
-    error_message = "project_name bo'sh bo'lmasligi kerak."
-  }
-}
-
-variable "environment" {
-  description = "Muhit: dev, staging yoki prod."
-  type        = string
-  default     = "dev"
-
-  validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "environment faqat dev, staging yoki prod bo'lishi kerak."
+    condition     = length(trimspace(var.name_prefix)) > 0
+    error_message = "name_prefix bo'sh bo'lmasligi kerak."
   }
 }
 
 variable "vpc_cidr" {
   description = "VPC uchun CIDR blok."
   type        = string
-  default     = "10.0.0.0/16"
 
   validation {
     condition     = can(cidrhost(var.vpc_cidr, 0))
@@ -41,7 +21,6 @@ variable "vpc_cidr" {
 variable "public_subnet_cidrs" {
   description = "Public subnetlar uchun CIDR bloklar ro'yxati."
   type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24"]
 
   validation {
     condition     = length(var.public_subnet_cidrs) >= 2 && alltrue([for c in var.public_subnet_cidrs : can(cidrhost(c, 0))])
@@ -52,7 +31,6 @@ variable "public_subnet_cidrs" {
 variable "private_subnet_cidrs" {
   description = "Private subnetlar uchun CIDR bloklar ro'yxati."
   type        = list(string)
-  default     = ["10.0.3.0/24", "10.0.4.0/24"]
 
   validation {
     condition     = length(var.private_subnet_cidrs) >= 2 && alltrue([for c in var.private_subnet_cidrs : can(cidrhost(c, 0))])

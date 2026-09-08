@@ -1,0 +1,222 @@
+name: Security CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+# Workflow va barcha joblar darajasida eng kam huquq (least privilege) — faqat contents: read
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_VERSION: "1.9.8"
+  PYTHON_VERSION: "3.12"
+  CHECKOV_VERSION: "3.3.16"
+  TF_DIR: "./terraform"
+
+jobs:
+  # -----------------------------------------------------------------------
+  # JOB 1: Terraform format tekshiruvi
+  # -----------------------------------------------------------------------
+  terraform-format:
+    name: Terraform Format Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a55928822304d9c490ccb872b7f5733d02 # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -recursive -check
+        working-directory: .
+
+  # -----------------------------------------------------------------------
+  # JOB 2: Terraform validate
+  # -----------------------------------------------------------------------
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: terraform-format
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a55928822304d9c490ccb872b7f5733d02 # v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init (no backend)
+        run: terraform init -backend=false
+        working-directory: ${{ env.TF_DIR }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ${{ env.TF_DIR }}
+
+  # -----------------------------------------------------------------------
+  # JOB 3: Checkov — statik xavfsizlik skan
+  # -----------------------------------------------------------------------
+  checkov-scan:
+    name: Checkov Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: terraform-validate
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Checkov
+        run: pip install checkov==${{ env.CHECKOV_VERSION }}
+
+      - name: Run Checkov Scan
+        id: checkov
+        run: |
+          checkov \
+            -d terraform \
+            --framework terraform \
+            --output cli \
+            --output sarif \
+            --output-file-path checkov-results \
+            --hard-fail-on CRITICAL,HIGH
+        # CRITICAL yoki HIGH topilsa — pipeline FAIL bo'ladi
+
+      - name: Upload Checkov SARIF report
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: checkov-sarif
+          path: checkov-results/results_sarif.sarif
+          retention-days: 30
+
+  # -----------------------------------------------------------------------
+  # JOB 4: Secret scan
+  # -----------------------------------------------------------------------
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: terraform-format
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install detect-secrets
+        run: pip install detect-secrets==1.5.0
+
+      - name: Run detect-secrets scan
+        run: |
+          detect-secrets scan \
+            --exclude-files '\.terraform/.*' \
+            --exclude-files '\.venv/.*' \
+            --exclude-files 'security/reports/.*' \
+            . > .secrets.baseline.new
+
+          python -c "
+          import json, sys
+          with open('.secrets.baseline.new') as f:
+              data = json.load(f)
+          results = data.get('results', {})
+          total = sum(len(v) for v in results.values())
+          if total > 0:
+              print(f'ERROR: {total} ta potensial secret topildi!')
+              for file, secrets in results.items():
+                  for s in secrets:
+                      print(f'  {file}:{s[\"line_number\"]} — {s[\"type\"]}')
+              sys.exit(1)
+          else:
+              print('OK: Hech qanday secret topilmadi.')
+          "
+
+  # -----------------------------------------------------------------------
+  # JOB 5: Security tests — Python
+  # -----------------------------------------------------------------------
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: terraform-validate
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run security tests
+        run: pytest tests/ -v --tb=short
+
+  # -----------------------------------------------------------------------
+  # Final summary job
+  # -----------------------------------------------------------------------
+  pipeline-summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs:
+      - terraform-format
+      - terraform-validate
+      - checkov-scan
+      - secret-scan
+      - security-tests
+    if: always()
+
+    steps:
+      - name: Check all jobs status
+        run: |
+          echo "=== PIPELINE YAKUNIY HOLAT ==="
+          echo "Terraform Format: ${{ needs.terraform-format.result }}"
+          echo "Terraform Validate: ${{ needs.terraform-validate.result }}"
+          echo "Checkov Scan: ${{ needs.checkov-scan.result }}"
+          echo "Secret Scan: ${{ needs.secret-scan.result }}"
+          echo "Security Tests: ${{ needs.security-tests.result }}"
+
+          if [[ "${{ needs.terraform-format.result }}" != "success" ]] || \
+             [[ "${{ needs.terraform-validate.result }}" != "success" ]] || \
+             [[ "${{ needs.checkov-scan.result }}" != "success" ]] || \
+             [[ "${{ needs.secret-scan.result }}" != "success" ]] || \
+             [[ "${{ needs.security-tests.result }}" != "success" ]]; then
+            echo ""
+            echo "❌ Pipeline MUVAFFAQIYATSIZ — xatolarni yuqoridagi joblardan ko'ring"
+            exit 1
+          else
+            echo ""
+            echo "✅ Barcha xavfsizlik tekshiruvlaridan o'tdi"
+          fi
