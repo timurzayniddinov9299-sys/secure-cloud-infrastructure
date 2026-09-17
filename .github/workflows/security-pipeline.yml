@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 # Workflow va barcha joblar darajasida eng kam huquq (least privilege) — faqat contents: read
 permissions:
@@ -13,7 +14,7 @@ permissions:
 env:
   TERRAFORM_VERSION: "1.9.8"
   PYTHON_VERSION: "3.12"
-  CHECKOV_VERSION: "3.3.16"
+  CHECKOV_VERSION: "3.3.18"
   TF_DIR: "./terraform"
 
 jobs:
@@ -93,13 +94,12 @@ jobs:
         id: checkov
         run: |
           checkov \
-            -d terraform \
+            -d . \
             --framework terraform \
             --output cli \
             --output sarif \
-            --output-file-path checkov-results \
-            --hard-fail-on CRITICAL,HIGH
-        # CRITICAL yoki HIGH topilsa — pipeline FAIL bo'ladi
+            --output-file-path checkov-results
+        # Har qanday Checkov xatoligi topilsa — pipeline FAIL bo'ladi
 
       - name: Upload Checkov SARIF report
         if: always()
