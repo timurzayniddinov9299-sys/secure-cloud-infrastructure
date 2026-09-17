@@ -2,8 +2,9 @@
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_id = data.aws_caller_identity.current.account_id
-  region     = var.aws_region
+  account_id    = data.aws_caller_identity.current.account_id
+  region        = var.aws_region
+  sns_topic_arn = "arn:aws:sns:${local.region}:${local.account_id}:${var.name_prefix}-cloudtrail-alerts"
 }
 
 # Customer-managed KMS kaliti: rotation yoqilgan, o'chirish oynasi xavfsiz.
@@ -38,6 +39,35 @@ resource "aws_kms_key" "this" {
         Condition = {
           StringLike = {
             "kms:EncryptionContext:aws:cloudtrail:arn" = "arn:aws:cloudtrail:${local.region}:${local.account_id}:trail/${var.name_prefix}-*"
+          }
+        }
+      },
+      {
+        Sid    = "AllowCloudTrailToUseKeyForSns"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudtrail.amazonaws.com"
+        }
+        Action = [
+          "kms:GenerateDataKey*",
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowSNSUseKeyForCloudTrailAlerts"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:EncryptionContext:aws:sns:topicArn" = local.sns_topic_arn
           }
         }
       }

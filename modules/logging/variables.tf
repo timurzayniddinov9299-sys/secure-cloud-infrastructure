@@ -18,13 +18,13 @@ variable "aws_region" {
   }
 }
 
-variable "kms_key_id" {
-  description = "CloudTrail jurnallarini shifrlash uchun KMS kalit identifikatori."
+variable "kms_key_arn" {
+  description = "CloudTrail jurnallari va log resurslarini shifrlash uchun KMS kalit ARN."
   type        = string
 
   validation {
-    condition     = length(trimspace(var.kms_key_id)) > 0
-    error_message = "kms_key_id bo'sh bo'lmasligi kerak."
+    condition     = length(trimspace(var.kms_key_arn)) > 0
+    error_message = "kms_key_arn bo'sh bo'lmasligi kerak."
   }
 }
 

@@ -2,10 +2,14 @@
 # Bu static hardcode o'rniga regiondagi mavjud AZlardan foydalanadi.
 data "aws_availability_zones" "available" {
   state = "available"
+  filter {
+    name   = "zone-name"
+    values = var.availability_zones
+  }
 }
 
 locals {
-  azs = length(var.availability_zones) > 0 ? var.availability_zones : slice(data.aws_availability_zones.available.names, 0, var.availability_zone_count)
+  azs = data.aws_availability_zones.available.names
 }
 
 resource "aws_vpc" "this" {

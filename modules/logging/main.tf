@@ -18,12 +18,31 @@ resource "aws_s3_bucket" "logs" {
 
 resource "aws_sns_topic" "alerts" {
   name              = "${var.name_prefix}-cloudtrail-alerts"
-  kms_master_key_id = var.kms_key_id
+  kms_master_key_id = var.kms_key_arn
 }
 
-resource "aws_s3_bucket_acl" "logs" {
-  bucket = aws_s3_bucket.logs.id
-  acl    = "private"
+# SNS topic policy: faqat CloudTrail yuborishi va SourceArn orqali chegaralash.
+resource "aws_sns_topic_policy" "alerts" {
+  arn = aws_sns_topic.alerts.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudtrail.amazonaws.com"
+        }
+        Action   = "sns:Publish"
+        Resource = aws_sns_topic.alerts.arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceArn" = "arn:aws:cloudtrail:${var.aws_region}:${local.account_id}:trail/${local.trail_name}"
+          }
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_s3_bucket_versioning" "logs" {
@@ -40,7 +59,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
-      kms_master_key_id = var.kms_key_id
+      kms_master_key_id = var.kms_key_arn
     }
   }
 }
@@ -107,6 +126,8 @@ resource "aws_s3_bucket_policy" "logs" {
   })
 }
 
+# CloudTrail trail: multi-region, log file validation, management events,
+# encrypted S3 destination, encrypted SNS notifications, least-privilege resource policies.
 resource "aws_cloudtrail" "this" {
   # checkov:skip=CKV2_AWS_10:CloudTrail to S3 is primary; CloudWatch Logs integration deferred
   name                          = local.trail_name
@@ -114,7 +135,7 @@ resource "aws_cloudtrail" "this" {
   enable_log_file_validation    = true
   is_multi_region_trail         = true
   include_global_service_events = true
-  kms_key_id                    = var.kms_key_id
+  kms_key_id                    = var.kms_key_arn
   sns_topic_name                = aws_sns_topic.alerts.name
 
   event_selector {

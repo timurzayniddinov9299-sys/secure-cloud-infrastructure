@@ -72,7 +72,7 @@ variable "availability_zone_count" {
 }
 
 variable "availability_zones" {
-  description = "Ixtiyoriy aniq availability zone ro'yxati. Bo'sh bo'lsa, AWS data source orqali olinadi."
+  description = "Availability zones used by this deployment."
   type        = list(string)
-  default     = []
+  default     = ["eu-central-1a", "eu-central-1b"]
 }

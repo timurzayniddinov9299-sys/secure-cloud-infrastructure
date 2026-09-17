@@ -68,15 +68,22 @@ resource "aws_iam_policy" "infrastructure_deploy" {
       {
         Effect = "Allow"
         Action = [
-          "ec2:DescribeVpcs",
-          "ec2:DescribeSubnets",
-          "ec2:DescribeRouteTables",
-          "ec2:DescribeInternetGateways",
-          "ec2:DescribeSecurityGroups",
           "ec2:DescribeAvailabilityZones",
-          "ec2:DescribeNetworkAcls"
+          "ec2:DescribeInternetGateways",
+          "ec2:DescribeNetworkAcls",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeVpcAttribute"
+        ]
+        Resource = "arn:aws:ec2:${local.region}:${local.account_id}:vpc/*"
       },
       {
         Effect = "Allow"
@@ -144,13 +151,14 @@ resource "aws_iam_policy" "infrastructure_deploy" {
           "s3:DeleteBucketPolicy",
           "s3:PutBucketVersioning",
           "s3:GetBucketVersioning",
-          "s3:PutBucketEncryption",
-          "s3:GetBucketEncryption",
+          "s3:PutEncryptionConfiguration",
+          "s3:GetEncryptionConfiguration",
           "s3:PutBucketPublicAccessBlock",
           "s3:GetBucketPublicAccessBlock",
           "s3:PutBucketAcl",
           "s3:GetBucketAcl",
-          "s3:ListBucket"
+          "s3:ListBucket",
+          "s3:GetBucketCORS"
         ]
         Resource = [
           "arn:aws:s3:::${var.name_prefix}-*",
@@ -187,7 +195,8 @@ resource "aws_iam_policy" "infrastructure_deploy" {
           "kms:UntagResource",
           "kms:CreateAlias",
           "kms:UpdateAlias",
-          "kms:DeleteAlias"
+          "kms:DeleteAlias",
+          "kms:ListResourceTags"
         ]
         Resource = ["arn:aws:kms:${local.region}:${local.account_id}:key/*"]
       },

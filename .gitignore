@@ -5,6 +5,12 @@
 *.tfplan
 *.tfvars
 *.tfvars.json
+.venv-checkov/
+terraform/tfplan
+terraform/tfplan.*
+terraform/state-backup-*.json
+crash.log
+crash.*.log
 
 # === Secrets / credentials ===
 *.pem
