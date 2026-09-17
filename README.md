@@ -1,298 +1,488 @@
 # Secure Cloud Infrastructure
 
-Xavfsiz va tekshiriladigan bulut infratuzilmasi (Secure Cloud Infrastructure). Ushbu loyiha AWS bulut muhiti uchun Terraform yordamida infratuzilmani kod sifatida (Infrastructure as Code - IaC) boshqarish, ko'p qatlamli xavfsizlikni (Defense in Depth) ta'minlash, statik xavfsizlik tahlili (SAST/Checkov), avtomatlashtirilgan testlar va GitHub Actions CI/CD pipelineni amalga oshirishni professional darajada namoyish etadi.
+[![Security CI/CD](https://github.com/timurzayniddinov9299-sys/secure-cloud-infrastructure/actions/workflows/security-pipeline.yml/badge.svg)](https://github.com/timurzayniddinov9299-sys/secure-cloud-infrastructure/actions/workflows/security-pipeline.yml)
+[![Terraform](https://img.shields.io/badge/Terraform-1.15.8-844FBA?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![AWS](https://img.shields.io/badge/AWS-Cloud%20Security-FF9900?logo=amazon-aws&logoColor=white)](https://aws.amazon.com/)
+[![Checkov](https://img.shields.io/badge/Checkov-3.3.18-2F80ED)](https://www.checkov.io/)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 
----
+## Overview
 
-## Loyiha maqsadi
+This repository contains a security-focused AWS infrastructure implementation built with Terraform. It demonstrates defense-in-depth cloud security through network segmentation, least-privilege IAM, encryption, centralized audit logging, restricted network access, and automated DevSecOps validation.
 
-Zamonaviy bulut tizimlarida xavfsizlik infratuzilma loyihalashning ilk bosqichlaridanoq ("Shift Left") kiritilishi shart. Loyihaning asosiy maqsadi:
-- AWS bulutida xavfsizlik eng yuqori standartlarga (CIS AWS Foundations Benchmark, NIST) mos keladigan arxitektura qurish;
-- Infratuzilmadagi xatoliklar, xavfli portlar va zaifliklarni ishlab chiqish bosqichida avtomatik aniqlash va bartaraf etish;
-- DevSecOps madaniyatiga muvofiq, CI/CD quvurida xavfsizlik nazoratini inson omilisiz majburiy qilish;
-- Cloud Security va DevSecOps yo'nalishida professional portfolio darajasidagi amaliy loyiha yaratish.
+The infrastructure is modular and designed as a secure foundation for cloud-hosted workloads.
 
----
+## Architecture
 
-## Arxitektura
-
-Loyiha ko'p qatlamli himoya (Defense-in-Depth) tamoyiliga asoslangan bo'lib, quyidagi mustaqil modullardan tashkil topgan:
-
-```
+```text
 Internet
-   │
-   ▼
-Internet Gateway
-   │
-   ▼
-Public Route Table → Public Subnet 1 & 2 (Web Layer)
-   │  [Web Security Group: 80, 443 ochiq]
-   │
-   ▼ port 8080
-Private Route Table → Private Subnet 1 & 2 (App Layer)
-   │  [App Security Group: faqat Web SG dan 8080 ruxsat]
-   │
-   ▼ (keyingi bosqich)
-Private Data Layer (Database)
+   |
+   v
++-------------------+
+| Internet Gateway  |
++---------+---------+
+          |
+          v
++-------------------------------+
+| Public Subnets                |
+| 10.0.1.0/24  10.0.2.0/24     |
+|                               |
+| Web Layer                     |
+| TCP 80 / TCP 443              |
++---------------+---------------+
+                |
+          TCP 8080
+                |
+                v
++-------------------------------+
+| Private Subnets               |
+| 10.0.3.0/24  10.0.4.0/24     |
+|                               |
+| Application Layer             |
+| App SG: Web SG -> TCP 8080   |
++-------------------------------+
+
+Security and Audit Services
+---------------------------
+IAM        -> Least-privilege access
+KMS        -> Encryption key management
+S3        -> Encrypted CloudTrail log storage
+CloudTrail -> AWS API activity auditing
+SNS        -> Encrypted notifications
+CI/CD      -> Automated security validation
 ```
 
-Arxitektura diagrammalari:
-- [Umumiy qatlamli arxitektura](diagrams/overall-architecture.md)
-- [Tarmoq arxitekturasi](diagrams/network-architecture.md)
-- [IAM rollar va siyosatlar](diagrams/iam-architecture.md)
-- [Shifrlash va audit logging](diagrams/logging-encryption.md)
+Detailed architecture documentation:
 
----
+- [Overall Architecture](diagrams/overall-architecture.md)
+- [Network Architecture](diagrams/network-architecture.md)
+- [IAM Architecture](diagrams/iam-architecture.md)
+- [Logging and Encryption](diagrams/logging-encryption.md)
 
-## Texnologiyalar
+## Implemented Components
 
-- **Cloud Platform:** Amazon Web Services (AWS)
-- **Infrastructure as Code:** HashiCorp Terraform (v1.9+)
-- **Security Scanner (SAST):** Checkov (v3.3+)
-- **Secret Scanner:** detect-secrets (v1.5+)
-- **Automated Testing:** Python 3.11+, Pytest
-- **CI/CD:** GitHub Actions
-- **Version Control:** Git
+### Network
 
----
+- VPC: `10.0.0.0/16`
+- Public subnets:
+  - `10.0.1.0/24`
+  - `10.0.2.0/24`
+- Private subnets:
+  - `10.0.3.0/24`
+  - `10.0.4.0/24`
+- Availability Zones:
+  - `eu-central-1a`
+  - `eu-central-1b`
+- Internet Gateway
+- Dedicated public and private route tables
 
-## Network Security
+### Security Groups
 
-Tarmoq darajasidagi xavfsizlik segmentatsiyasi:
-- **VPC Izolyatsiyasi:** `10.0.0.0/16` CIDR blokida 2 ta Availability Zone (AZ) bo'ylab tarqalgan alohida virtual tarmoq.
-- **Subnetlar segmentatsiyasi:** 
-  - 2 ta Public Subnet (`10.0.1.0/24`, `10.0.2.0/24`) — faqat tashqi trafik qabul qiluvchi resurslar uchun;
-  - 2 ta Private Subnet (`10.0.3.0/24`, `10.0.4.0/24`) — ilova va ichki komponentlar uchun, internetdan bevosita ulanish imkoni yo'q.
-- **Route Tables:** Public subnetlar Internet Gateway (IGW) orqali yo'naltirilgan, private subnetlar esa tashqi marshrutga ega emas.
-- **Security Groups (SG):**
-  - `web-sg`: Internetdan faqat 80 (HTTP) va 443 (HTTPS) portlariga ruxsat, egress faqat 80/443;
-  - `app-sg`: Ingress faqat `web-sg`dan 8080 porti uchun, internetdan to'g'ridan-to'g'ri kirish mutlaqo bloklangan;
-  - `default-sg`: VPC ning standart xavfsizlik guruhidagi barcha ingress va egress qoidalari qat'iy o'chirilgan (Blackhole).
-- **Qat'iy taqiq:** SSH (22), RDP (3389) va boshqa barcha boshqaruv portlari internetga (0.0.0.0/0) ochilmagan.
+**Web security group**
+- Inbound TCP `80` from the internet
+- Inbound TCP `443` from the internet
+- Egress restricted to TCP `80` and `443`
 
----
+**Application security group**
+- Inbound TCP `8080` from the Web security group only
+- Egress restricted to HTTPS
 
-## IAM Security
+**Default security group**
+- No inbound rules
+- No outbound rules
 
-Identifikatsiya va ruxsatlarni boshqarishda eng kam huquq (Principle of Least Privilege) tamoyili:
-- **Maxsus rollar:**
-  - `infrastructure-role`: Faqat VPC, Subnet, Route Table, CloudTrail, KMS va S3 resurslarini boshqarish huquqiga ega. `AdministratorAccess` berilmagan;
-  - `workload-role`: EC2 web/app serverlari uchun — faqat CloudWatch Logs yozish va SSM parametrlarni o'qish huquqi;
-  - `monitoring-role`: Faqat CloudWatch Logs yozish va CloudWatch metrikalarini yuborish.
-- **Wildcard siyosati:**
-  - `Action: "*"` qat'iyan taqiqlangan;
-  - `Resource: "*"` faqat AWS API resource-level cheklovlariga ega bo'lmagan amallar (masalan, `ec2:Describe*` yoki `cloudwatch:PutMetricData`) uchun asosli ravishda ishlatilgan;
-  - `Principal: "*"` trust policylarda taqiqlangan.
-- **Customer-Managed Policies:** Inline siyosatlardan voz kechilgan, barcha siyosatlar alohida versiyalanadi va audit qilinadi.
+SSH (`22`) and RDP (`3389`) are not exposed to the internet.
 
----
+### IAM
 
-## Encryption
+The project defines dedicated roles for infrastructure management, workloads, and monitoring:
 
-Ma'lumotlar saqlanish (At-Rest) va uzatilish (In-Transit) paytida to'liq shifrlanadi:
-- **AWS KMS Customer-Managed Key (CMK):**
-  - Avtomatik kalit aylanishi (`enable_key_rotation = true`) yoqilgan;
-  - Tasodifiy o'chirishdan himoya sifatida 30 kunlik o'chirish oynasi (`deletion_window_in_days = 30`) belgilangan;
-  - Key Policy faqat hisob root administratori va CloudTrail xizmatiga cheklangan kontekst asosida ruxsat beradi.
-- **S3 Server-Side Encryption:** Barcha loglar SSE-KMS bilan mijoz kaliti orqali shifrlanadi.
-- **In-Transit Encryption:** S3 bucket siyosatida `aws:SecureTransport: false` so'rovlariga `Deny` qoidasi qo'llangan — faqat HTTPS ruxsat etiladi.
+- `infrastructure-role`
+- `workload-role`
+- `monitoring-role`
 
----
+Policies use resource-specific ARNs where AWS APIs support resource-level permissions. APIs that require `Resource = "*"` are documented accordingly.
 
-## Logging
+### Encryption
 
-Audit va monitoring poydevori:
-- **AWS CloudTrail:**
-  - Ko'p mintaqali audit trail (`is_multi_region_trail = true`);
-  - Barcha global xizmat eventlari qamrab olingan (`include_global_service_events = true`);
-  - Barcha o'qish va yozish boshqaruv eventlari (`read_write_type = "All"`);
-  - Log yaxlitligi tekshiruvi (`enable_log_file_validation = true`) orqali loglarning o'zgartirilmasligi (tamper-proof) ta'minlangan.
-- **Secure Log Bucket (S3):**
-  - S3 Public Access Block to'liq yoqilgan (4/4 parametr true);
-  - S3 Versioning yoqilgan (tasodifiy yoki g'arazli o'chirishdan himoya);
-  - Faqat CloudTrail xizmatiga o'ziga tegishli prefiksga yozish ruxsati berilgan;
-  - Xavfsizlik xabarnomalari uchun KMS bilan shifrlangan SNS topic biriktirilgan.
+- Customer-managed AWS KMS key
+- Automatic key rotation
+- 30-day KMS deletion window
+- KMS integration with CloudTrail and SNS
+- SSE-KMS encryption for CloudTrail log storage
 
----
+### Logging and Alerting
 
-## Security Scanning
+- Multi-region AWS CloudTrail trail
+- CloudTrail log-file validation
+- Management event logging
+- Encrypted and versioned S3 log bucket
+- S3 Public Access Block
+- HTTPS-only S3 access
+- KMS-encrypted SNS topic with restricted publishing policy
 
-Loyihada **Checkov** SAST vositasi orqali barcha Terraform kodlari statik xavfsizlik auditidan o'tkazilgan:
-- **Tekshiruv natijasi:**
-  - `92 passed`
-  - `0 failed` (CRITICAL = 0, HIGH = 0, MEDIUM = 0, LOW = 0)
-  - `11 skipped` (barchasi loyiha me'moriy qarorlari asosida kod ichida aniq izohlangan).
-- **Maxfiy ma'lumotlarni skanlash:** `detect-secrets` vositasi yordamida repozitoriy to'liq tekshirildi — 0 ta secret/leak.
-- To'liq hisobotlar: [`security/reports/latest-checkov.txt`](security/reports/latest-checkov.txt).
+## Security Controls
 
----
+### Network Security
 
-## DevSecOps Pipeline
+- Public/private subnet separation
+- Application layer isolated from direct internet access
+- Web access limited to HTTP/HTTPS
+- Application access limited to Web security group
+- Default security group locked down
+- No public SSH or RDP access
 
-GitHub Actions orqali to'liq avtomatlashtirilgan CI/CD pipeline:
-- **Har bir Push va Pull Request'da avtomatik ishga tushadi:**
-  1. **Terraform Format Check:** `terraform fmt -recursive -check`
-  2. **Terraform Validate:** `terraform init -backend=false` va `terraform validate`
-  3. **Checkov Security Scan:** SAST tekshiruv, CRITICAL yoki HIGH topilsa pipeline to'xtatiladi (`--hard-fail-on CRITICAL,HIGH`)
-  4. **Secret Scanning:** Maxfiy kalit va parollarni qidirish (`detect-secrets`)
-  5. **Automated Security Tests:** Pytest to'plami (20 ta avtomatik test)
-- **Workflow Xavfsizligi:**
-  - Qat'iy **Least Privilege**: workflow va barcha joblarda faqat `permissions: contents: read` ruxsati berilgan;
-  - **Commit SHA Pinning**: Barcha tashqi GitHub Actions versiyalari to'liq 40-belgili commit SHA bilan qulflangan (Supply Chain xavfsizligi).
+### Identity and Access Management
 
-Batafsil: [`.github/workflows/security-pipeline.yml`](.github/workflows/security-pipeline.yml).
+- Least-privilege IAM policies
+- Dedicated roles for infrastructure, workload, and monitoring use cases
+- Resource-level IAM scoping where supported
+- No broad administrative permissions for workload roles
+- Documented `Resource = "*"` exceptions for AWS APIs that require them
 
----
+### Data Protection
 
-## Limitations
+- KMS customer-managed encryption
+- Automatic KMS key rotation
+- SSE-KMS encrypted S3 logs
+- S3 versioning
+- S3 Public Access Block
+- HTTPS-only access to the log bucket
 
-Hozirgi bosqichdagi texnik va me'moriy chegaralar:
-- **AWS Real Resurslari:** AWS hisobida hali real resurslar (EC2, NAT Gateway, RDS) yaratilmagan, barcha tekshiruvlar statik kod tahlili va simulatsiya darajasida.
-- **NAT Gateway:** Doimiy xarajat keltiruvchi komponent bo'lgani sababli, arxitekturaga kiritilgan lekin real deploy bosqichigacha faollashtirilmagan.
-- **VPC Flow Logs va CloudWatch Logs Integratsiyasi:** Xarajat va keyingi Cloud SIEM bosqichiga qoldirilgan.
-- **Terraform Remote State:** Hozirda lokal holatda, real deployment vaqtida S3 va DynamoDB locking bilan to'ldiriladi.
-- **GitHub Actions Test Muhiti:** CI quvuri AWS credentialsiz, to'liq off-cloud rejimida xavfsizlik va sintaksis tekshiruvlarini o'tkazadi.
+### Audit and Monitoring
 
----
+- Multi-region CloudTrail
+- Log-file validation
+- Centralized CloudTrail storage in S3
+- Encrypted SNS notification channel
+- Restricted CloudTrail/SNS policies
 
-## Threat Model
+## Network Design
 
-Loyihaning ehtimoliy xavflari, hujum vektorlari va ularni bartaraf etish usullari STRIDE/NIST tamoyillari asosida tahlil qilingan:
-- **Aktivlar:** VPC topologiyasi, IAM kalitlar, KMS kalitlari, CloudTrail audit loglari;
-- **Asosiy xavflar:** Tarmoq xavflari (ochiq portlar, SG abuse), IAM haddan tashqari keng huquqlar, loglarni o'chirish/tampering, ma'lumotlar oqishi;
-- **Boshqaruv choralari:** Har bir xavf uchun oldini olish (prevent), aniqlash (detect) va kamaytirish (mitigate) choralari ishlab chiqilgan.
+| Component | Configuration |
+|---|---|
+| VPC | `10.0.0.0/16` |
+| Public Subnet 1 | `10.0.1.0/24` |
+| Public Subnet 2 | `10.0.2.0/24` |
+| Private Subnet 1 | `10.0.3.0/24` |
+| Private Subnet 2 | `10.0.4.0/24` |
+| Availability Zones | `eu-central-1a`, `eu-central-1b` |
 
-To'liq hujjat: [`docs/threat-model.md`](docs/threat-model.md).
+### Routing
 
----
+- Public subnets use the Internet Gateway for the default route.
+- Private route tables contain local VPC routes only.
+- NAT Gateway is intentionally not enabled in the current cost-conscious baseline.
 
-## Incident Response
+### Security Group Relationships
 
-Kelajakdagi real deployment va Cloud SIEM integratsiyasi uchun hodisalarga javob berish amaliyoti (Playbook) ishlab chiqilgan:
-- Credential Compromise (AWS Key o'g'irlanishi) → Isolate → Preserve logs → Investigate → Remediate → Verify
-- Security Group buzilishi (ochiq portlar)
-- CloudTrail to'xtatilishi
-- KMS kalit o'chirishga qo'yilishi
-- S3 Public Access ochilishi
+| Security Group | Ingress | Egress |
+|---|---|---|
+| `web-sg` | Internet -> `80`, `443` | `80`, `443` |
+| `app-sg` | `web-sg` -> `8080` | HTTPS |
+| `default-sg` | None | None |
 
-To'liq playbook: [`docs/incident-response.md`](docs/incident-response.md).
+## IAM Design
 
----
+### Roles
+
+1. **Infrastructure role** — manages infrastructure and security resources required by Terraform.
+2. **Workload role** — intended for web/application workloads.
+3. **Monitoring role** — intended for monitoring and logging workloads.
+
+### Least-Privilege Model
+
+Where AWS supports resource-level permissions, policies reference specific resource ARNs.
+
+For APIs such as certain EC2 `Describe*` operations that do not support resource-level permissions, `Resource = "*"` is used intentionally and documented in the Terraform policy.
+
+## Logging and Monitoring
+
+### CloudTrail
+
+CloudTrail is configured with:
+
+- Multi-region coverage
+- Global service events
+- Read/write management events
+- Log-file validation
+- KMS encryption
+- Secure S3 delivery
+
+### S3 Log Bucket
+
+The log bucket uses:
+
+- Versioning
+- SSE-KMS encryption
+- Public access blocking
+- HTTPS-only transport
+- Restricted CloudTrail write access
+
+### SNS
+
+The SNS topic:
+
+- Uses KMS encryption
+- Restricts publishing to CloudTrail
+- Uses source validation conditions
+- Provides the notification channel for CloudTrail-related alerts
+
+## Security Validation / DevSecOps
+
+Security validation is automated through:
+
+```text
+.github/workflows/security-pipeline.yml
+```
+
+The GitHub Actions pipeline includes:
+
+1. **Terraform Format Check**
+   - `terraform fmt -recursive -check`
+
+2. **Terraform Validate**
+   - `terraform init -backend=false`
+   - `terraform validate`
+
+3. **Checkov Security Scan**
+   - Checkov `3.3.18`
+   - Terraform security analysis
+
+4. **Secret Scan**
+   - `detect-secrets`
+   - Checks for potential hardcoded credentials and secrets
+
+5. **Security Tests**
+   - `pytest tests/ -v --tb=short`
+
+6. **Pipeline Summary**
+   - Fails the workflow if a required security stage fails
+
+### Latest Verified Results
+
+| Validation | Result |
+|---|---:|
+| Terraform Format | PASS |
+| Terraform Validate | PASS |
+| Checkov | **92 passed / 0 failed / 11 skipped** |
+| Secret Scan | PASS |
+| Security Tests | **20 passed** |
+| GitHub Actions | **PASS** |
+| CI warnings | **0** |
 
 ## Testing
 
-Konfiguratsiyani avtomatik tekshiruvchi testlar `tests/test_security.py` ichida joylashgan:
-- Format va sintaksis testlari;
-- Taqiqlangan portlar (SSH 22, RDP 3389, 0.0.0.0/0 dan to'liq ochiq trafik);
-- Public S3 va Public Access Block mavjudligi va qiymatlari;
-- IAM wildcard `Action:*` va `Principal:*` mavjud emasligi;
-- S3 HTTPS majburiyligi (`aws:SecureTransport`);
-- KMS kalit rotatsiyasi va CloudTrail konfiguratsiyasi.
+The test suite is located at:
 
-**Natija:** 20/20 test muvaffaqiyatli o'tdi (`pytest tests/ -v`).
+```text
+tests/test_security.py
+```
 
-Haqiqiy xavfsizlik nazorati ishlayotganini isbotlovchi **Negative Test** o'tkazilgan (vaqtincha SSH ochilib, Checkov uni topishi va olib tashlangach 0 failed holatiga qaytishi tasdiqlangan): [`docs/security-testing.md`](docs/security-testing.md).
+It checks security properties of the Terraform configuration, including:
 
----
+- Terraform formatting
+- Terraform validation
+- SSH/RDP exposure restrictions
+- Security-group port restrictions
+- S3 public-access protection
+- S3 encryption
+- S3 versioning
+- IAM wildcard permissions
+- Administrator access restrictions
+- HTTPS enforcement
+- KMS key rotation
+- CloudTrail configuration
+- Multi-region logging
+- Log-file validation
 
-## Security Baseline
+The latest verified result is:
 
-Loyihaning yakuniy statik xavfsizlik asosi:
-- [x] Public S3 bucket yo'q
-- [x] Public SSH (22) yo'q
-- [x] Public RDP (3389) yo'q
-- [x] Database portlari internetga ochilmagan
-- [x] S3 bucket encryption yoqilgan (SSE-KMS)
-- [x] KMS rotation yoqilgan
-- [x] CloudTrail yoqilgan va multi-region
-- [x] CloudTrail log file validation yoqilgan
-- [x] IAM least privilege saqlangan
-- [x] Secure transport (HTTPS) majburiy
-- [x] Maxfiy ma'lumotlar kodda mavjud emas
+```text
+20 passed
+```
 
-Batafsil: [`docs/security-baseline.md`](docs/security-baseline.md).
+These tests validate the Terraform configuration and do not require AWS credentials.
 
----
-
-## Project Structure
+## Repository Structure
 
 ```text
 secure-cloud-infrastructure/
 ├── .github/
 │   └── workflows/
-│       └── security-pipeline.yml   # CI/CD GitHub Actions pipeline
+│       └── security-pipeline.yml
 ├── diagrams/
-│   ├── network-architecture.md    # Tarmoq arxitekturasi va SG oqimi
-│   ├── iam-architecture.md        # IAM rollar, trust policy va huquqlar
-│   ├── logging-encryption.md      # KMS, S3 va CloudTrail bog'liqligi
-│   └── overall-architecture.md    # Umumiy qatlamli xavfsizlik diagrammasi
+│   ├── overall-architecture.md
+│   ├── network-architecture.md
+│   ├── iam-architecture.md
+│   └── logging-encryption.md
 ├── docs/
-│   ├── aws-cost-safety.md         # AWS xarajat xavfsizligi va tavsiyalar
-│   ├── evidence.md                # Barcha test va tekshiruvlar dalillari
-│   ├── incident-response.md       # Hodisalarga javob berish bo'yicha qo'llanma
-│   ├── security-baseline.md       # Xavfsizlik talablari va holati
-│   ├── security-testing.md        # Negative test va testlash hisoboti
-│   └── threat-model.md            # Xavflarni modellashtirish (Threat Model)
+│   ├── aws-cost-safety.md
+│   ├── incident-response.md
+│   ├── security-baseline.md
+│   ├── security-testing.md
+│   └── threat-model.md
 ├── modules/
-│   ├── encryption/                # KMS Customer-Managed Key va Alias
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   └── variables.tf
-│   ├── iam/                       # Minimal ruxsatli rollar va siyosatlar
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   └── variables.tf
-│   ├── logging/                   # CloudTrail, KMS bilan shifrlangan S3 va SNS
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   └── variables.tf
-│   ├── network/                   # VPC, Public/Private Subnetlar, IGW, Route Tables
-│   │   ├── main.tf
-│   │   ├── outputs.tf
-│   │   └── variables.tf
-│   └── security/                  # Web va App Security Groups
-│       ├── main.tf
-│       ├── outputs.tf
-│       └── variables.tf
+│   ├── encryption/
+│   ├── iam/
+│   ├── logging/
+│   ├── network/
+│   └── security/
 ├── security/
-│   └── reports/                   # Checkov va negative test hisobotlari
-│       ├── checkov-bosqich9-final.txt
-│       ├── latest-checkov.txt
-│       └── negative-test-ssh.txt
-├── tests/
-│   └── test_security.py           # 20 ta avtomatlashtirilgan xavfsizlik testi
-├── terraform/                     # Root Terraform konfiguratsiyasi
+│   └── reports/
+├── terraform/
 │   ├── main.tf
 │   ├── outputs.tf
 │   ├── providers.tf
 │   ├── variables.tf
 │   └── versions.tf
+├── tests/
+│   └── test_security.py
 ├── .gitignore
 └── README.md
 ```
 
----
+## Technologies
 
-## Current Status
+| Technology | Purpose |
+|---|---|
+| AWS | Cloud infrastructure and security services |
+| Terraform `1.15.8` | Infrastructure as Code |
+| AWS VPC | Network isolation and segmentation |
+| AWS IAM | Identity and access management |
+| AWS KMS | Encryption key management |
+| Amazon S3 | Secure audit-log storage |
+| AWS CloudTrail | API activity auditing |
+| Amazon SNS | Notifications and alerting |
+| GitHub Actions | CI/CD automation |
+| Checkov `3.3.18` | Terraform security scanning |
+| Python `3.12` | Security test automation |
+| pytest | Automated testing |
+| detect-secrets `1.5.0` | Secret scanning |
 
-> **Current Status:**  
-> **AWS deployment hali amalga oshirilmagan.**  
-> Loyihaning barcha lokal, me'moriy, statik xavfsizlik, testlash, DevSecOps va hujjatlashtirish ishlari to'liq yakunlangan. Real AWS hisobida birorta ham resurs yaratilmagan, hisob xarajatlari xavfsiz holatda saqlangan.
+## Deployment / Usage
 
----
+### Prerequisites
 
-## AWS Deployment Preparation
+- Terraform `1.15.8`
+- AWS CLI
+- Appropriate AWS permissions
+- Python environment for security tests
 
-Kelajakda AWS hisob tayyor bo'lganda va real deploy bosqichiga o'tilganda bajariladigan ishlar:
-1. **AWS Authentication & Setup:**
-   - AWS CLI sozlash (`aws configure`) yoki CI/CD uchun AWS OIDC GitHub Actions integratsiyasini yoqish;
-   - Terraform uchun masofaviy backend (S3 Bucket + DynamoDB State Locking) sozlash.
-2. **Xarajat xavfsizligini ta'minlash:**
-   - [`docs/aws-cost-safety.md`](docs/aws-cost-safety.md) bo'yicha AWS Budgets va Cost Alarms sozlash;
-   - NAT Gateway va EC2 resurslarini faqat sinov davrida yoqish.
-3. **Infratuzilmani rejalashtirish va qo'llash:**
-   - `terraform plan -out=tfplan` orqali yaratiladigan resurslarni oldindan to'liq ko'rib chiqish;
-   - `terraform apply tfplan` orqali resurslarni ketma-ketlikda yaratish.
-4. **Deploydan keyingi tekshiruv:**
-   - CloudTrail loglarining S3 ga shifrlanib tushayotganini tekshirish;
-   - Log fayllari yaxlitligini tekshirish (`aws cloudtrail validate-logs`).
+### Initialize
+
+```bash
+terraform -chdir=terraform init
+```
+
+### Validate
+
+```bash
+terraform -chdir=terraform validate
+```
+
+### Generate a Plan
+
+```bash
+terraform -chdir=terraform plan \
+  -var="aws_region=eu-central-1" \
+  -out=tfplan
+```
+
+Review the plan carefully before applying it.
+
+### Apply
+
+```bash
+terraform -chdir=terraform apply tfplan
+```
+
+### Destroy
+
+```bash
+terraform -chdir=terraform destroy \
+  -var="aws_region=eu-central-1"
+```
+
+## Security Notes
+
+### AWS Credentials
+
+Never commit:
+
+- AWS access keys
+- Secret keys
+- API tokens
+- Passwords
+- `.env` files
+- Sensitive `.tfvars` files
+
+Use IAM roles, AWS CLI profiles, or GitHub Actions OIDC where appropriate.
+
+### Terraform State
+
+Terraform state may contain sensitive infrastructure information.
+
+Do not commit:
+
+```text
+terraform.tfstate
+terraform.tfstate.backup
+```
+
+The repository `.gitignore` excludes Terraform state and generated files.
+
+For collaborative environments, use a remote state backend with appropriate locking.
+
+### Before Applying Changes
+
+Always inspect:
+
+```bash
+terraform -chdir=terraform plan -var="aws_region=eu-central-1"
+```
+
+before applying infrastructure changes.
+
+## Future / Deferred Components
+
+The current baseline intentionally leaves several workload and operational components outside the security foundation:
+
+- NAT Gateway for controlled private-subnet internet egress
+- EC2 workload instances
+- Database layer such as Amazon RDS
+- VPC Flow Logs
+- Additional CloudWatch/SIEM integration
+- S3 lifecycle and cross-region replication enhancements
+- Remote Terraform state and locking
+- GitHub Actions AWS OIDC deployment workflow
+
+These can be introduced based on workload, operational, security, and cost requirements.
+
+## Project Status
+
+The project currently provides a modular AWS security-focused Terraform foundation.
+
+Current verified status:
+
+- Terraform formatting and validation pass
+- Checkov: `92 passed / 0 failed / 11 skipped`
+- Security tests: `20 passed`
+- Secret scanning passes
+- GitHub Actions pipeline passes with zero warnings
+- Core infrastructure and security services have been provisioned and verified in AWS
+- Workload resources such as EC2, NAT Gateway, and a database layer remain deferred
+
+The repository is structured as a Cloud Security / DevSecOps portfolio project demonstrating Infrastructure as Code, security hardening, audit logging, and automated security validation.
+
+## Additional Documentation
+
+- [Security Baseline](docs/security-baseline.md)
+- [Security Testing](docs/security-testing.md)
+- [Threat Model](docs/threat-model.md)
+- [Incident Response](docs/incident-response.md)
+- [AWS Cost Safety](docs/aws-cost-safety.md)
+
+## License
+
+See the repository `LICENSE` file for licensing information.
