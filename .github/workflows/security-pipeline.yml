@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  TERRAFORM_VERSION: "1.9.8"
+  TERRAFORM_VERSION: "1.15.8"
   PYTHON_VERSION: "3.12"
   CHECKOV_VERSION: "3.3.18"
   TF_DIR: "./terraform"
