@@ -18,21 +18,6 @@ output "log_bucket_arn" {
   value       = aws_s3_bucket.logs.arn
 }
 
-output "cloudtrail_log_group_name" {
-  description = "CloudTrail CloudWatch Log Group name."
-  value       = aws_cloudwatch_log_group.cloudtrail.name
-}
-
-output "cloudtrail_log_group_arn" {
-  description = "CloudTrail CloudWatch Log Group ARN."
-  value       = aws_cloudwatch_log_group.cloudtrail.arn
-}
-
-output "cloudtrail_logs_role_arn" {
-  description = "CloudTrail CloudWatch Logs IAM role ARN."
-  value       = aws_iam_role.cloudtrail_logs.arn
-}
-
 output "vpc_flow_log_id" {
   description = "VPC Flow Log ID"
   value       = aws_flow_log.vpc.id

@@ -85,16 +85,16 @@ output "log_bucket_arn" {
 }
 
 output "monitoring_cloudtrail_log_group_arn" {
-  description = "CloudTrail CloudWatch Log Group ARN."
-  value       = module.logging.cloudtrail_log_group_arn
+  description = "CloudTrail CloudWatch log group ARN from monitoring module."
+  value       = module.monitoring.cloudtrail_log_group_arn
 }
 
 output "monitoring_cloudtrail_logs_role_arn" {
-  description = "CloudTrail CloudWatch Logs IAM role ARN."
-  value       = module.logging.cloudtrail_logs_role_arn
+  description = "CloudTrail CloudWatch logging role ARN from monitoring module."
+  value       = module.monitoring.cloudtrail_logs_role_arn
 }
 
 output "monitoring_security_alert_topic_arn" {
-  description = "Security alerts SNS topic ARN."
+  description = "Security alert SNS topic ARN from monitoring module."
   value       = module.monitoring.security_alert_topic_arn
 }

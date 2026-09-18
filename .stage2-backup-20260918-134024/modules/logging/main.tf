@@ -126,69 +126,6 @@ resource "aws_s3_bucket_policy" "logs" {
   })
 }
 
-
-# CloudTrail -> CloudWatch Logs resources live in the same module so Checkov can
-# resolve the direct graph connection between aws_cloudtrail and
-# aws_cloudwatch_log_group.
-resource "aws_cloudwatch_log_group" "cloudtrail" {
-  name              = "/aws/cloudtrail/${var.name_prefix}"
-  retention_in_days = 365
-  kms_key_id        = var.kms_key_arn
-
-  tags = {
-    Name = "${var.name_prefix}-cloudtrail"
-  }
-}
-
-resource "aws_iam_role" "cloudtrail_logs" {
-  name = "${var.name_prefix}-cloudtrail-logs"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "cloudtrail.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-        Condition = {
-          StringEquals = {
-            "aws:SourceAccount" = local.account_id
-            "aws:SourceArn"     = "arn:aws:cloudtrail:${local.region}:${local.account_id}:trail/${local.trail_name}"
-          }
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_policy" "cloudtrail_logs" {
-  name        = "${var.name_prefix}-cloudtrail-logs-policy"
-  description = "Allows CloudTrail to write events to its dedicated CloudWatch log group."
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = [
-          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/cloudtrail/${var.name_prefix}:log-stream:${local.account_id}_CloudTrail_${local.region}*"
-        ]
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "cloudtrail_logs" {
-  role       = aws_iam_role.cloudtrail_logs.name
-  policy_arn = aws_iam_policy.cloudtrail_logs.arn
-}
-
 # CloudTrail trail: multi-region, log file validation, management events,
 # encrypted S3 destination, encrypted SNS notifications, least-privilege resource policies.
 resource "aws_cloudtrail" "this" {
@@ -199,8 +136,8 @@ resource "aws_cloudtrail" "this" {
   include_global_service_events = true
   kms_key_id                    = var.kms_key_arn
   sns_topic_name                = aws_sns_topic.alerts.name
-  cloud_watch_logs_group_arn    = "${aws_cloudwatch_log_group.cloudtrail.arn}:*"
-  cloud_watch_logs_role_arn     = aws_iam_role.cloudtrail_logs.arn
+  cloud_watch_logs_group_arn    = var.cloudwatch_log_group_arn
+  cloud_watch_logs_role_arn     = var.cloudwatch_logs_role_arn
 
   event_selector {
     read_write_type           = "All"

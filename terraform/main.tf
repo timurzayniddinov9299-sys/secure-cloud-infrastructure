@@ -1,5 +1,4 @@
-# Root konfiguratsiya: network va security modullarini chaqiradi.
-# AWS resurslari hali real yaratilmaydi; kod keyingi bosqichda apply uchun tayyor.
+# Root configuration: network va security modullarini chaqiradi.
 
 module "network" {
   source = "../modules/network"
@@ -40,4 +39,35 @@ module "logging" {
   aws_region  = var.aws_region
   kms_key_arn = module.encryption.kms_key_arn
   vpc_id      = module.network.vpc_id
+}
+
+module "monitoring" {
+  source = "../modules/monitoring"
+
+  name_prefix               = "${var.project_name}-${var.environment}"
+  aws_region                = var.aws_region
+  kms_key_arn               = module.encryption.kms_key_arn
+  cloudtrail_log_group_name = module.logging.cloudtrail_log_group_name
+}
+
+# Preserve Terraform state addresses if Stage2 was ever applied before the
+# CloudTrail CloudWatch resources were moved from monitoring to logging.
+moved {
+  from = module.monitoring.aws_cloudwatch_log_group.cloudtrail
+  to   = module.logging.aws_cloudwatch_log_group.cloudtrail
+}
+
+moved {
+  from = module.monitoring.aws_iam_role.cloudtrail_logs
+  to   = module.logging.aws_iam_role.cloudtrail_logs
+}
+
+moved {
+  from = module.monitoring.aws_iam_policy.cloudtrail_logs
+  to   = module.logging.aws_iam_policy.cloudtrail_logs
+}
+
+moved {
+  from = module.monitoring.aws_iam_role_policy_attachment.cloudtrail_logs
+  to   = module.logging.aws_iam_role_policy_attachment.cloudtrail_logs
 }

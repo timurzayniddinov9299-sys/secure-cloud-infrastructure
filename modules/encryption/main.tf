@@ -72,6 +72,23 @@ resource "aws_kms_key" "this" {
         }
       },
       {
+        Sid    = "AllowCloudWatchToUseKeyForSecuritySNSTopic"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudwatch.amazonaws.com"
+        }
+        Action = [
+          "kms:GenerateDataKey*",
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:EncryptionContext:aws:sns:topicArn" = "${var.name_prefix}-security-alerts"
+          }
+        }
+      },
+      {
         Sid    = "AllowCloudWatchLogsToUseKey"
         Effect = "Allow"
         Principal = {
@@ -87,7 +104,7 @@ resource "aws_kms_key" "this" {
         Resource = "*"
         Condition = {
           StringLike = {
-            "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/vpc-flow-logs/${var.name_prefix}"
+            "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/cloudtrail/${var.name_prefix}"
           }
         }
       }

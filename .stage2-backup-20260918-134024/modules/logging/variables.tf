@@ -37,18 +37,19 @@ variable "log_bucket_name" {
 variable "vpc_id" {
   description = "VPC ID for VPC Flow Logs"
   type        = string
+
+  validation {
+    condition     = length(trimspace(var.vpc_id)) > 0
+    error_message = "vpc_id bo'sh bo'lmasligi kerak."
+  }
 }
 
-# Kept for backwards compatibility with previous Stage2 module wiring.
-# CloudTrail now references local resources directly for Checkov graph visibility.
 variable "cloudwatch_log_group_arn" {
-  description = "Deprecated compatibility input; CloudTrail now uses the local log group resource."
+  description = "CloudTrail CloudWatch log group ARN from monitoring module."
   type        = string
-  default     = ""
 }
 
 variable "cloudwatch_logs_role_arn" {
-  description = "Deprecated compatibility input; CloudTrail now uses the local IAM role resource."
+  description = "CloudTrail CloudWatch logging role ARN from monitoring module."
   type        = string
-  default     = ""
 }
