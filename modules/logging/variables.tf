@@ -33,3 +33,8 @@ variable "log_bucket_name" {
   type        = string
   default     = ""
 }
+
+variable "vpc_id" {
+  description = "VPC ID for VPC Flow Logs"
+  type        = string
+}

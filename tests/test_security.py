@@ -461,3 +461,167 @@ class TestCloudTrail:
                 "aws_cloudtrail resursida kms_key_id topilmadi! "
                 "CloudTrail KMS bilan shifrlangan bo'lishi kerak."
             )
+
+
+# ===========================================================================
+# 9. VPC Flow Logs
+# ===========================================================================
+class TestVPCFlowLogs:
+    """VPC Flow Logs konfiguratsiya tekshiruvi."""
+
+    def test_vpc_flow_log_exists(self):
+        """aws_flow_log resurs mavjud."""
+        content = get_all_tf_content()
+        assert 'aws_flow_log' in content, (
+            "aws_flow_log resurs topilmadi! VPC Flow Logs konfiguratsiya qilinishi kerak."
+        )
+
+    def test_vpc_flow_log_traffic_type_all(self):
+        """traffic_type = 'ALL'."""
+        content = get_all_tf_content()
+        flow_log_blocks = re.findall(
+            r'resource\s+"aws_flow_log"[^{]*\{(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
+        )
+        assert flow_log_blocks, "aws_flow_log resource topilmadi!"
+        for block in flow_log_blocks:
+            assert re.search(r'traffic_type\s*=\s*"ALL"', block), (
+                "aws_flow_log resursida traffic_type = 'ALL' topilmadi! "
+                "VPC Flow Logs barcha trafikni loglamasligi kerak."
+            )
+
+    def test_vpc_flow_log_destination_type_cloudwatch(self):
+        """log_destination_type = 'cloud-watch-logs'."""
+        content = get_all_tf_content()
+        flow_log_blocks = re.findall(
+            r'resource\s+"aws_flow_log"[^{]*\{(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
+        )
+        for block in flow_log_blocks:
+            assert re.search(r'log_destination_type\s*=\s*"cloud-watch-logs"', block), (
+                "aws_flow_log resursida log_destination_type = 'cloud-watch-logs' topilmadi! "
+                "CloudWatch Logs destination bo'lishi kerak."
+            )
+
+    def test_vpc_flow_log_cloudwatch_log_group_exists(self):
+        """CloudWatch log group for VPC Flow Logs mavjud."""
+        content = get_all_tf_content()
+        assert 'aws_cloudwatch_log_group' in content, (
+            "aws_cloudwatch_log_group resurs topilmadi!"
+        )
+        log_group_blocks = re.findall(
+            r'resource\s+"aws_cloudwatch_log_group"[^{]*\{(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
+        )
+        found_vpc_flow_logs = False
+        for block in log_group_blocks:
+            if '/aws/vpc-flow-logs/' in block:
+                found_vpc_flow_logs = True
+                break
+        assert found_vpc_flow_logs, (
+            "VPC Flow Logs uchun CloudWatch log group topilmadi! "
+            "Log group nomi /aws/vpc-flow-logs/ prefixi bilan bo'lishi kerak."
+        )
+
+    def test_vpc_flow_log_cloudwatch_retention_365(self):
+        """CloudWatch log group retention = 365 kun."""
+        content = get_all_tf_content()
+        log_group_blocks = re.findall(
+            r'resource\s+"aws_cloudwatch_log_group"[^{]*\{(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
+        )
+        found_vpc_flow_logs = False
+        for block in log_group_blocks:
+            if '/aws/vpc-flow-logs/' in block:
+                found_vpc_flow_logs = True
+                assert re.search(r'retention_in_days\s*=\s*365', block), (
+                    "VPC Flow Logs CloudWatch log group retention 365 kun emas! "
+                    "retention_in_days = 365 bo'lishi kerak."
+                )
+                break
+        assert found_vpc_flow_logs, "VPC Flow Logs log group topilmadi!"
+
+    def test_vpc_flow_log_iam_role_trusts_vpc_flow_logs_service(self):
+        """IAM role vpc-flow-logs.amazonaws.com service'ini trust qiladi."""
+        content = get_all_tf_content()
+        role_blocks = re.findall(
+            r'resource\s+"aws_iam_role"[^{]*\{(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
+        )
+        found_vpc_flow_logs_role = False
+        for block in role_blocks:
+            if 'vpc-flow-logs' in block and 'vpc-flow-logs.amazonaws.com' in block:
+                found_vpc_flow_logs_role = True
+                break
+        assert found_vpc_flow_logs_role, (
+            "VPC Flow Logs IAM role topilmadi yoki vpc-flow-logs.amazonaws.com service'ini trust qilmayapti!"
+        )
+
+    def test_no_inline_aws_iam_role_policy_for_vpc_flow_logs(self):
+        """VPC Flow Logs uchun inline aws_iam_role_policy yo'q."""
+        tf_files = get_all_tf_files()
+        violations = []
+        for tf_file in tf_files:
+            content = read_tf_file(tf_file)
+            if 'vpc_flow_logs' in content or 'vpc-flow-logs' in content:
+                if re.search(r'resource\s+"aws_iam_role_policy"', content):
+                    violations.append(tf_file)
+        assert not violations, (
+            f"VPC Flow Logs uchun aws_iam_role_policy (inline policy) topildi — customer-managed policy ishlatish kerak:\n" +
+            "\n".join(violations)
+        )
+
+    def test_vpc_flow_log_cloudwatch_log_group_kms_encrypted(self):
+        """VPC Flow Logs CloudWatch log group KMS bilan shifrlangan."""
+        content = get_all_tf_content()
+        log_group_blocks = re.findall(
+            r'resource\s+"aws_cloudwatch_log_group"[^{]*\{(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
+        )
+        found_vpc_flow_logs = False
+        for block in log_group_blocks:
+            if '/aws/vpc-flow-logs/' in block:
+                found_vpc_flow_logs = True
+                assert 'kms_key_id' in block, (
+                    "VPC Flow Logs CloudWatch log group kms_key_id yo'q! "
+                    "KMS encryption majburiy."
+                )
+                break
+        assert found_vpc_flow_logs, "VPC Flow Logs log group topilmadi!"
+
+    def test_vpc_flow_log_iam_role_trust_policy_source_account(self):
+        """IAM role trust policy'da aws:SourceAccount condition mavjud."""
+        content = get_all_tf_content()
+        role_blocks = re.findall(
+            r'resource\s+"aws_iam_role"[^{]*\{(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
+        )
+        found_vpc_flow_logs_role = False
+        for block in role_blocks:
+            if 'vpc-flow-logs' in block:
+                found_vpc_flow_logs_role = True
+                assert 'aws:SourceAccount' in block, (
+                    "VPC Flow Logs IAM role trust policy'da aws:SourceAccount condition yo'q!"
+                )
+                break
+        assert found_vpc_flow_logs_role, "VPC Flow Logs IAM role topilmadi!"
+
+    def test_vpc_flow_log_iam_role_trust_policy_source_arn(self):
+        """IAM role trust policy'da aws:SourceArn condition mavjud."""
+        content = get_all_tf_content()
+        role_blocks = re.findall(
+            r'resource\s+"aws_iam_role"[^{]*\{(.+?)^}',
+            content, re.DOTALL | re.MULTILINE
+        )
+        found_vpc_flow_logs_role = False
+        for block in role_blocks:
+            if 'vpc-flow-logs' in block:
+                found_vpc_flow_logs_role = True
+                assert 'aws:SourceArn' in block, (
+                    "VPC Flow Logs IAM role trust policy'da aws:SourceArn condition yo'q!"
+                )
+                assert 'vpc-flow-log' in block, (
+                    "VPC Flow Logs IAM role trust policy'da SourceArn vpc-flow-log patternini o'z ichiga olmasligi kerak!"
+                )
+                break
+        assert found_vpc_flow_logs_role, "VPC Flow Logs IAM role topilmadi!"

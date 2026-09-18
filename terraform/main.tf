@@ -39,4 +39,5 @@ module "logging" {
   name_prefix = "${var.project_name}-${var.environment}"
   aws_region  = var.aws_region
   kms_key_arn = module.encryption.kms_key_arn
+  vpc_id      = module.network.vpc_id
 }

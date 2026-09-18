@@ -13,7 +13,7 @@ locals {
 }
 
 resource "aws_vpc" "this" {
-  # checkov:skip=CKV2_AWS_11:VPC Flow Logs deferred to a later network revision
+  # checkov:skip=CKV2_AWS_11:VPC Flow Logs are implemented by module.logging.aws_flow_log.vpc; Checkov does not resolve this cross-module relationship correctly.
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true

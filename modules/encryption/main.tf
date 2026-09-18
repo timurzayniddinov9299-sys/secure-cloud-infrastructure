@@ -70,6 +70,26 @@ resource "aws_kms_key" "this" {
             "kms:EncryptionContext:aws:sns:topicArn" = local.sns_topic_arn
           }
         }
+      },
+      {
+        Sid    = "AllowCloudWatchLogsToUseKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/vpc-flow-logs/${var.name_prefix}"
+          }
+        }
       }
     ]
   })
